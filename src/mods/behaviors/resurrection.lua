@@ -92,7 +92,7 @@ local function renderDeathCounterOverlay(runtime, overlay)
     local label = ""
     local value = ""
     if count > 0 then
-        label = "Practice deaths"
+        label = "InfiniDD deaths"
         value = tostring(count)
     end
 

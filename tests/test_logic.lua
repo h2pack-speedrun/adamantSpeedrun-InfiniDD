@@ -552,7 +552,7 @@ function TestInfiniDDLogic:testDeathCounterOverlayRendersCurrentRunCount()
         end,
     })
 
-    lu.assertEquals(lines.deathCounter.label, "Practice deaths")
+    lu.assertEquals(lines.deathCounter.label, "InfiniDD deaths")
     lu.assertEquals(lines.deathCounter.value, "1")
     lu.assertEquals(refreshedLines, { "deathCounter" })
 end

@@ -6,13 +6,13 @@ local ui = {}
 local WARNING_TEXT_OPTS = {
     color = { 1.0, 0.18, 0.18, 1.0 },
 }
-local PRACTICE_WARNING_TEXT = "Practice module active: dying after all DDs are consumed triggers a hidden DD."
+local PRACTICE_WARNING_TEXT = "InfiniDD module active: dying after all DDs are consumed triggers a hidden DD."
 local SETTING_LABEL_WIDTH = 160
 local SETTING_DROPDOWN_WIDTH = 80
 
 local RECOVERY_PERCENT_OPTS = {
     label = "Recovery",
-    tooltip = "Health and magick restored by each practice Death Defiance.",
+    tooltip = "Health and magick restored by each InfiniDD Death Defiance.",
     labelWidth = SETTING_LABEL_WIDTH,
     controlWidth = SETTING_DROPDOWN_WIDTH,
     valueRange = {
@@ -27,17 +27,17 @@ local RECOVERY_PERCENT_OPTS = {
 
 local SHOW_DEATH_COUNTER_OPTS = {
     label = "Side counter overlay",
-    tooltip = "Show the side overlay counter for practice Death Defiances.",
+    tooltip = "Show the side overlay counter for InfiniDD Death Defiances.",
 }
 
 local ENABLE_PRACTICE_SLOW_OPTS = {
     label = "Slow on death",
-    tooltip = "Slow the player, enemies, projectiles, and world objects after a practice Death Defiance.",
+    tooltip = "Slow the player, enemies, projectiles, and world objects after an InfiniDD Death Defiance.",
 }
 
 local PRACTICE_SLOW_SECONDS_OPTS = {
     label = "Slow duration",
-    tooltip = "Duration of the practice Death Defiance world slowdown.",
+    tooltip = "Duration of the InfiniDD Death Defiance world slowdown.",
     labelWidth = SETTING_LABEL_WIDTH,
     controlWidth = SETTING_DROPDOWN_WIDTH,
     valueRange = {
