@@ -18,8 +18,8 @@ local reload = mods["SGG_Modding-ReLoad"]
 ---@type AdamantModpackLib
 lib = mods["adamant-ModpackLib"]
 
-local PACK_ID = error("SCAFFOLD_TODO: set PACK_ID to your pack id")
-local MODULE_ID = "SCAFFOLD_TODO_ModuleId"
+local PACK_ID = "speedrun"
+local MODULE_ID = "InfiniDD"
 local PLUGIN_GUID = _PLUGIN.guid
 
 local function init()
@@ -33,9 +33,9 @@ local function init()
         pluginGuid = PLUGIN_GUID,
         modpack = PACK_ID,
         id = MODULE_ID,
-        name = "SCAFFOLD_TODO Module Name",
-        shortName = "SCAFFOLD_TODO_SHORT",
-        tooltip = "SCAFFOLD_TODO tooltip",
+        name = "InfiniDD",
+        shortName = "InfiniDD",
+        tooltip = "SCAFFOLD_TODO: tooltip for InfiniDD",
     })
     if not module then
         return
