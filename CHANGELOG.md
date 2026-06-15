@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-15
+
+### Added
+
+- infinidd: add practice display toggles (
+52bf1a)
+- add InfiniDD practice slow (
+c6458e)
+
+### Fixed
+
+- infinidd: align practice labels (638cfd7)
+- infinidd: stabilize practice overlay settings (
+1342d3)
+
+### Changed
+
+- split InfiniDD behaviors (
+10f401)
+- infinidd: replace time penalty with death counter (
+83111c)
+
 ## [1.0.0] - 2026-06-15
 
 ### Added
