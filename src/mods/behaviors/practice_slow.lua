@@ -24,31 +24,13 @@ local practiceSlowState = {
     generation = 0,
 }
 
-local function clampInteger(value, spec)
-    local integer = math.floor(tonumber(value) or spec.default)
-    if integer < spec.min then
-        return spec.min
-    end
-    if integer > spec.max then
-        return spec.max
-    end
-    return integer
-end
-
-local function readPracticeSlowSeconds(runtime)
-    return clampInteger(runtime.data.read(data.PRACTICE_SLOW_SECONDS_ALIAS), data.practiceSlowSeconds)
-end
-
 local function formatPracticeSlowRemaining(remainingSeconds)
     local tenths = math.ceil((math.max(0, remainingSeconds) * 10) - 0.001)
-    if tenths < 0 then
-        tenths = 0
-    end
     return string.format("%.1fs", tenths / 10)
 end
 
 local function readPracticeSlowRemaining(now)
-    local elapsed = math.max(0, (tonumber(now) or clock()) - practiceSlowState.startedAt)
+    local elapsed = math.max(0, (now or clock()) - practiceSlowState.startedAt)
     return math.max(0, practiceSlowState.duration - elapsed)
 end
 
@@ -69,7 +51,7 @@ local function renderPracticeSlowOverlay(now, overlay)
         })
         practiceSlowState.clearRequested = false
     end
-    overlay.refreshRegion(PRACTICE_SLOW_OVERLAY_REGION)
+    overlay.refresh(PRACTICE_SLOW_OVERLAY_LINE)
 end
 
 local function applyPracticeSlow()
@@ -100,7 +82,7 @@ local function finishPracticeSlow(generation, duration)
 end
 
 function behavior.start(runtime)
-    local duration = readPracticeSlowSeconds(runtime)
+    local duration = runtime.data.read(data.PRACTICE_SLOW_SECONDS_ALIAS)
     if duration <= 0 then
         return
     end

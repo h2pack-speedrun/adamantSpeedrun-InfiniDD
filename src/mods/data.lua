@@ -1,6 +1,8 @@
 local data = {}
 
 data.RECOVERY_PERCENT_ALIAS = "RecoveryPercent"
+data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS = "ShowDeathCounterOverlay"
+data.ENABLE_PRACTICE_SLOW_ALIAS = "EnablePracticeSlow"
 data.PRACTICE_SLOW_SECONDS_ALIAS = "PracticeSlowSeconds"
 data.recoveryPercent = {
     default = 40,
@@ -9,8 +11,8 @@ data.recoveryPercent = {
     step = 5,
 }
 data.practiceSlowSeconds = {
-    default = 0,
-    min = 0,
+    default = 3,
+    min = 1,
     max = 10,
     step = 1,
 }
@@ -24,6 +26,16 @@ function data.buildStorage()
             default = data.recoveryPercent.default,
             min = data.recoveryPercent.min,
             max = data.recoveryPercent.max,
+        },
+        {
+            type = "bool",
+            alias = data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS,
+            default = true,
+        },
+        {
+            type = "bool",
+            alias = data.ENABLE_PRACTICE_SLOW_ALIAS,
+            default = true,
         },
         {
             type = "int",

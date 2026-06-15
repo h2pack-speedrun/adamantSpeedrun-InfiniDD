@@ -9,23 +9,8 @@ local DEATH_COUNTER_OVERLAY_LINE = "deathCounter"
 local DEATH_COUNTER_OVERLAY_REGION = "middleRightStack"
 local DEATH_COUNTER_OVERLAY_REFRESH_SECONDS = 0.25
 
-local function clampInteger(value, spec)
-    local integer = math.floor(tonumber(value) or spec.default)
-    if integer < spec.min then
-        return spec.min
-    end
-    if integer > spec.max then
-        return spec.max
-    end
-    return integer
-end
-
-local function clampRecoveryPercent(value)
-    return clampInteger(value, data.recoveryPercent)
-end
-
 local function buildPracticeLastStand(runtime)
-    local recoveryFraction = clampRecoveryPercent(runtime.data.read(data.RECOVERY_PERCENT_ALIAS)) / 100
+    local recoveryFraction = runtime.data.read(data.RECOVERY_PERCENT_ALIAS) / 100
     return {
         Name = PRACTICE_LAST_STAND_NAME,
         Icon = "ExtraLifeReplenish",
@@ -34,32 +19,21 @@ local function buildPracticeLastStand(runtime)
     }
 end
 
-local function isCurrentHero(victim)
-    return CurrentRun ~= nil and CurrentRun.Hero ~= nil and victim == CurrentRun.Hero
-end
-
-local function hasCurrentRoom()
-    return CurrentRun ~= nil and CurrentRun.CurrentRoom ~= nil
-end
-
 local function shouldUsePracticeLastStand(host, victim)
     if host.isEnabled() ~= true then
         return false
     end
-    if not isCurrentHero(victim) then
+    if CurrentRun == nil or CurrentRun.Hero == nil or victim ~= CurrentRun.Hero then
         return false
     end
-    if not hasCurrentRoom() then
+    if CurrentRun.CurrentRoom == nil then
         return false
     end
     return not (SessionMapState and SessionMapState.InfiniteDeathDefiance)
 end
 
 local function ensureRoomUsageTable()
-    local room = CurrentRun and CurrentRun.CurrentRoom or nil
-    if room == nil then
-        return false
-    end
+    local room = CurrentRun.CurrentRoom
     if room.LastStandsUsed == nil then
         room.LastStandsUsed = {}
         return true
@@ -71,7 +45,7 @@ local function snapshotUsageCounts(createdRoomUsageTable)
     local roomUsage = CurrentRun.CurrentRoom.LastStandsUsed
     return {
         heroLastStandsUsed = CurrentRun.Hero.LastStandsUsed,
-        roomPracticeLastStandsUsed = roomUsage and roomUsage[PRACTICE_LAST_STAND_NAME] or nil,
+        roomPracticeLastStandsUsed = roomUsage[PRACTICE_LAST_STAND_NAME],
         createdRoomUsageTable = createdRoomUsageTable,
     }
 end
@@ -99,24 +73,13 @@ local function removePracticeLastStand(victim, practiceLastStand)
     end
 end
 
-local function getPracticeDeaths(runtime)
-    return runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS)
-end
-
 local function readPracticeDeathCount(runtime)
-    local deaths = getPracticeDeaths(runtime)
-    if deaths == nil then
-        return 0
-    end
-    return math.floor(tonumber(deaths.count) or 0)
+    return runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS).count
 end
 
 local function incrementPracticeDeathCount(runtime)
-    local deaths = getPracticeDeaths(runtime)
-    if deaths == nil then
-        return 0
-    end
-    deaths.count = math.floor(tonumber(deaths.count) or 0) + 1
+    local deaths = runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS)
+    deaths.count = deaths.count + 1
     return deaths.count
 end
 
@@ -133,7 +96,7 @@ local function renderDeathCounterOverlay(runtime, overlay)
         label = label,
         value = value,
     })
-    overlay.refreshRegion(DEATH_COUNTER_OVERLAY_REGION)
+    overlay.refresh(DEATH_COUNTER_OVERLAY_LINE)
 end
 
 local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs, onPracticeDeath)
@@ -161,13 +124,19 @@ local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs
 end
 
 local function registerDeathCounterOverlay(overlays)
+    local function shouldShowDeathCounter(host, runtime)
+        return host.isEnabled() == true
+            and runtime.data.read(data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS) == true
+            and readPracticeDeathCount(runtime) > 0
+    end
+
     overlays.createLine(DEATH_COUNTER_OVERLAY_LINE, {
         componentName = "InfiniDD_DeathCounter",
         region = DEATH_COUNTER_OVERLAY_REGION,
         order = overlays.order.module + 5,
         columnGap = 8,
         visible = function(host, runtime)
-            return host.isEnabled() == true and readPracticeDeathCount(runtime) > 0
+            return shouldShowDeathCounter(host, runtime)
         end,
         columns = {
             {
@@ -195,7 +164,7 @@ local function registerDeathCounterOverlay(overlays)
         renderDeathCounterOverlay(runtime, overlay)
     end, {
         when = function(host, runtime)
-            return host.isEnabled() == true and readPracticeDeathCount(runtime) > 0
+            return shouldShowDeathCounter(host, runtime)
         end,
     })
 end

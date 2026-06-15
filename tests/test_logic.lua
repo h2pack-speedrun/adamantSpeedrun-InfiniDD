@@ -1,4 +1,4 @@
--- luacheck: globals TestInfiniDDLogic CurrentRun
+-- luacheck: globals TestInfiniDDLogic CurrentRun unpack
 local lu = require("luaunit")
 local unpack = table.unpack or unpack
 
@@ -13,6 +13,7 @@ TestInfiniDDLogic = {}
 
 local function loadLogic(clock, threadFunc)
     return assert(loadfile("src/mods/logic.lua"))({
+        data = data,
         practiceSlow = loadBehavior("src/mods/behaviors/practice_slow.lua", {
             data = data,
             clock = clock,
@@ -55,7 +56,8 @@ local function captureHooks()
     return hooks, overlays
 end
 
-local function createRuntime(recoveryPercent, practiceSlowSeconds)
+local function createRuntime(recoveryPercent, practiceSlowSeconds, opts)
+    opts = opts or {}
     local practiceDeaths = {
         count = 0,
     }
@@ -64,6 +66,8 @@ local function createRuntime(recoveryPercent, practiceSlowSeconds)
         [data.PRACTICE_SLOW_SECONDS_ALIAS] = practiceSlowSeconds == nil
             and data.practiceSlowSeconds.default
             or practiceSlowSeconds,
+        [data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS] = opts.showDeathCounter ~= false,
+        [data.ENABLE_PRACTICE_SLOW_ALIAS] = opts.enablePracticeSlow ~= false,
     }
     return {
         data = {
@@ -93,6 +97,18 @@ local function createHost(enabled)
         logIf = function()
         end,
     }
+end
+
+function TestInfiniDDLogic.testStorageDefaultsKeepSlowDurationSeparateFromEnableToggle()
+    local storage = data.buildStorage()
+
+    lu.assertEquals(storage[2].alias, data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS)
+    lu.assertEquals(storage[2].default, true)
+    lu.assertEquals(storage[3].alias, data.ENABLE_PRACTICE_SLOW_ALIAS)
+    lu.assertEquals(storage[3].default, true)
+    lu.assertEquals(storage[4].alias, data.PRACTICE_SLOW_SECONDS_ALIAS)
+    lu.assertEquals(storage[4].default, 3)
+    lu.assertEquals(storage[4].min, 1)
 end
 
 function TestInfiniDDLogic:setUp()
@@ -311,9 +327,11 @@ function TestInfiniDDLogic:testPracticeDefianceStartsWorldSlowAfterSuccessfulPra
     })
 end
 
-function TestInfiniDDLogic:testPracticeDefianceZeroSlowDoesNotStartWorldSlow()
+function TestInfiniDDLogic:testPracticeDefianceCountsButDoesNotSlowWhenSlowDisabled()
     local host = createHost(true)
-    local runtime = createRuntime(55, 0)
+    local runtime = createRuntime(55, 4, {
+        enablePracticeSlow = false,
+    })
     local calls = 0
 
     local result = self.checkLastStand(host, runtime, function(victim)
@@ -331,8 +349,6 @@ function TestInfiniDDLogic:testPracticeDefianceZeroSlowDoesNotStartWorldSlow()
     lu.assertEquals(runtime.practiceDeaths.count, 1)
     lu.assertEquals(self.gameplaySlowCalls, {})
     lu.assertEquals(self.threadCalls, {})
-    lu.assertFalse(self.overlays.lines.practiceSlow.visible(host, runtime))
-    lu.assertFalse(self.overlays.intervals.practiceSlow.opts.when(host, runtime))
 end
 
 function TestInfiniDDLogic:testBaseLastStandDoesNotStartPracticeWorldSlow()
@@ -390,7 +406,7 @@ function TestInfiniDDLogic:testPracticeSlowOverlayRendersDuringSlowAndClearsAfte
     local slowLine = self.overlays.lines.practiceSlow
     local slowInterval = self.overlays.intervals.practiceSlow
     local lines = {}
-    local refreshedRegions = {}
+    local refreshedLines = {}
 
     lu.assertNotNil(slowLine)
     lu.assertEquals(slowLine.region, "centerLowerStack")
@@ -416,8 +432,8 @@ function TestInfiniDDLogic:testPracticeSlowOverlayRendersDuringSlowAndClearsAfte
         setLine = function(name, values)
             lines[name] = values
         end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
+        refresh = function(name)
+            refreshedLines[#refreshedLines + 1] = name
         end,
     }
 
@@ -431,7 +447,7 @@ function TestInfiniDDLogic:testPracticeSlowOverlayRendersDuringSlowAndClearsAfte
         label = "InfiniDD slow",
         value = "2.8s",
     })
-    lu.assertEquals(refreshedRegions, { "centerLowerStack" })
+    lu.assertEquals(refreshedLines, { "practiceSlow" })
 
     self.threadCalls[1].callback(unpack(self.threadCalls[1].args))
     lu.assertTrue(slowLine.visible(host, runtime))
@@ -447,7 +463,7 @@ function TestInfiniDDLogic:testPracticeSlowOverlayRendersDuringSlowAndClearsAfte
         label = "",
         value = "",
     })
-    lu.assertEquals(refreshedRegions, { "centerLowerStack", "centerLowerStack" })
+    lu.assertEquals(refreshedLines, { "practiceSlow", "practiceSlow" })
     lu.assertFalse(slowLine.visible(host, runtime))
     lu.assertFalse(slowInterval.opts.when(host, runtime))
 end
@@ -461,19 +477,19 @@ function TestInfiniDDLogic:testDeathCounterOverlayStaysHiddenBeforeFirstPractice
     lu.assertFalse(self.overlays.intervals.deathCounter.opts.when(createHost(true), runtime))
 
     local lines = {}
-    local refreshedRegions = {}
+    local refreshedLines = {}
     self.overlays.intervals.deathCounter.callback(createHost(true), runtime, {
         setLine = function(name, values)
             lines[name] = values
         end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
+        refresh = function(name)
+            refreshedLines[#refreshedLines + 1] = name
         end,
     })
 
     lu.assertEquals(lines.deathCounter.label, "")
     lu.assertEquals(lines.deathCounter.value, "")
-    lu.assertEquals(refreshedRegions, { "middleRightStack" })
+    lu.assertEquals(refreshedLines, { "deathCounter" })
 end
 
 function TestInfiniDDLogic:testDeathCounterOverlayRendersCurrentRunCount()
@@ -498,17 +514,41 @@ function TestInfiniDDLogic:testDeathCounterOverlayRendersCurrentRunCount()
     lu.assertTrue(self.overlays.intervals.deathCounter.opts.when(host, runtime))
 
     local lines = {}
-    local refreshedRegions = {}
+    local refreshedLines = {}
     self.overlays.intervals.deathCounter.callback(host, runtime, {
         setLine = function(name, values)
             lines[name] = values
         end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
+        refresh = function(name)
+            refreshedLines[#refreshedLines + 1] = name
         end,
     })
 
     lu.assertEquals(lines.deathCounter.label, "Practice deaths")
     lu.assertEquals(lines.deathCounter.value, "1")
-    lu.assertEquals(refreshedRegions, { "middleRightStack" })
+    lu.assertEquals(refreshedLines, { "deathCounter" })
+end
+
+function TestInfiniDDLogic:testDeathCounterOverlayCanBeHiddenWithoutStoppingCount()
+    local host = createHost(true)
+    local runtime = createRuntime(55, 4, {
+        showDeathCounter = false,
+    })
+    local calls = 0
+
+    local result = self.checkLastStand(host, runtime, function(victim)
+        calls = calls + 1
+        if calls == 1 then
+            return false
+        end
+
+        table.remove(victim.LastStands)
+        return true
+    end, CurrentRun.Hero, {})
+
+    lu.assertEquals(result, true)
+    lu.assertEquals(calls, 2)
+    lu.assertEquals(runtime.practiceDeaths.count, 1)
+    lu.assertFalse(self.overlays.lines.deathCounter.visible(host, runtime))
+    lu.assertFalse(self.overlays.intervals.deathCounter.opts.when(host, runtime))
 end

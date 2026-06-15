@@ -1,6 +1,7 @@
 local deps = ... or {}
+local data = deps.data or import("mods/data.lua")
 local behaviorDeps = {
-    data = deps.data,
+    data = data,
     clock = deps.clock,
     thread = deps.thread,
 }
@@ -13,7 +14,9 @@ function logic.attach(moduleRef)
     practiceSlow.attach(moduleRef)
     resurrection.attach(moduleRef, {
         onPracticeDeath = function(runtime)
-            practiceSlow.start(runtime)
+            if runtime.data.read(data.ENABLE_PRACTICE_SLOW_ALIAS) then
+                practiceSlow.start(runtime)
+            end
         end,
     })
 end

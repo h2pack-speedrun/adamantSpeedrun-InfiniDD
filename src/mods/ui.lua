@@ -25,9 +25,19 @@ local RECOVERY_PERCENT_OPTS = {
     default = data.recoveryPercent.default,
 }
 
-local PRACTICE_SLOW_SECONDS_OPTS = {
-    label = "World slow",
+local SHOW_DEATH_COUNTER_OPTS = {
+    label = "Side counter overlay",
+    tooltip = "Show the side overlay counter for practice Death Defiances.",
+}
+
+local ENABLE_PRACTICE_SLOW_OPTS = {
+    label = "Slow on death",
     tooltip = "Slow the player, enemies, projectiles, and world objects after a practice Death Defiance.",
+}
+
+local PRACTICE_SLOW_SECONDS_OPTS = {
+    label = "Slow duration",
+    tooltip = "Duration of the practice Death Defiance world slowdown.",
     labelWidth = SETTING_LABEL_WIDTH,
     controlWidth = SETTING_DROPDOWN_WIDTH,
     valueRange = {
@@ -48,6 +58,8 @@ end
 local function drawSettings(host, draw, state)
     drawPracticeWarning(host, draw)
     draw.widgets.dropdown(state.get(data.RECOVERY_PERCENT_ALIAS), RECOVERY_PERCENT_OPTS)
+    draw.widgets.checkbox(state.get(data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS), SHOW_DEATH_COUNTER_OPTS)
+    draw.widgets.checkbox(state.get(data.ENABLE_PRACTICE_SLOW_ALIAS), ENABLE_PRACTICE_SLOW_OPTS)
     draw.widgets.dropdown(state.get(data.PRACTICE_SLOW_SECONDS_ALIAS), PRACTICE_SLOW_SECONDS_OPTS)
 end
 
