@@ -5,13 +5,22 @@ local unpack = table.unpack or unpack
 local data = dofile("src/mods/data.lua")
 local logic
 
+local function loadBehavior(path, deps)
+    return assert(loadfile(path))(deps)
+end
+
 TestInfiniDDLogic = {}
 
 local function loadLogic(clock, threadFunc)
     return assert(loadfile("src/mods/logic.lua"))({
-        data = data,
-        clock = clock,
-        thread = threadFunc,
+        practiceSlow = loadBehavior("src/mods/behaviors/practice_slow.lua", {
+            data = data,
+            clock = clock,
+            thread = threadFunc,
+        }),
+        resurrection = loadBehavior("src/mods/behaviors/resurrection.lua", {
+            data = data,
+        }),
     })
 end
 
@@ -283,7 +292,6 @@ function TestInfiniDDLogic:testPracticeDefianceStartsWorldSlowAfterSuccessfulPra
             Name = "InfiniDDPracticeSlow",
             ElapsedTimeMultiplier = 0.1,
             ApplyToPlayerUnits = true,
-            SkipPresentation = true,
         },
     })
 
@@ -300,7 +308,6 @@ function TestInfiniDDLogic:testPracticeDefianceStartsWorldSlowAfterSuccessfulPra
         ElapsedTimeMultiplier = 0.1,
         ApplyToPlayerUnits = true,
         Reverse = true,
-        SkipPresentation = true,
     })
 end
 
@@ -373,7 +380,6 @@ function TestInfiniDDLogic:testOlderPracticeSlowThreadDoesNotClearNewerSlow()
         ElapsedTimeMultiplier = 0.1,
         ApplyToPlayerUnits = true,
         Reverse = true,
-        SkipPresentation = true,
     })
 end
 
