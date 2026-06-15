@@ -1,31 +1,13 @@
--- luacheck: globals CurrentRun SessionMapState AddSimSpeedChange RemoveSimSpeedChange
+-- luacheck: globals CurrentRun SessionMapState
 local deps = ... or {}
 local data = deps.data or import("mods/data.lua")
-local clock = deps.clock or os.clock
 
 local logic = {}
 
 local PRACTICE_LAST_STAND_NAME = "InfiniDD"
-local PENALTY_SPEED_CHANGE_NAME = "InfiniDDPenalty"
-local PENALTY_OVERLAY_LINE = "penalty"
-local PENALTY_OVERLAY_REGION = "centerLowerStack"
-local PENALTY_OVERLAY_REFRESH_SECONDS = 0.1
-local PENALTY_SIM_SPEED = {
-    Fraction = 0,
-    LerpTime = 0.001,
-    Priority = true,
-}
-local PENALTY_CLEAR_SPEED = {
-    LerpTime = 0.001,
-}
-local penaltyState = {
-    active = false,
-    endsAt = nil,
-    needsOverlayRefresh = false,
-    prewarm = true,
-    remainingSeconds = 0,
-    token = 0,
-}
+local DEATH_COUNTER_OVERLAY_LINE = "deathCounter"
+local DEATH_COUNTER_OVERLAY_REGION = "middleRightStack"
+local DEATH_COUNTER_OVERLAY_REFRESH_SECONDS = 0.25
 
 local function clampRecoveryPercent(value)
     local percent = math.floor(tonumber(value) or data.recoveryPercent.default)
@@ -36,17 +18,6 @@ local function clampRecoveryPercent(value)
         return data.recoveryPercent.max
     end
     return percent
-end
-
-local function clampTimePenaltySeconds(value)
-    local seconds = math.floor(tonumber(value) or data.timePenaltySeconds.default)
-    if seconds < data.timePenaltySeconds.min then
-        return data.timePenaltySeconds.min
-    end
-    if seconds > data.timePenaltySeconds.max then
-        return data.timePenaltySeconds.max
-    end
-    return seconds
 end
 
 local function buildPracticeLastStand(runtime)
@@ -124,59 +95,41 @@ local function removePracticeLastStand(victim, practiceLastStand)
     end
 end
 
-local function currentPenaltyRemaining()
-    local remainingSeconds = tonumber(penaltyState.remainingSeconds) or 0
-    if penaltyState.active == true and penaltyState.endsAt ~= nil then
-        remainingSeconds = math.max(0, penaltyState.endsAt - clock())
-    end
-    return remainingSeconds
+local function getPracticeDeaths(runtime)
+    return runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS)
 end
 
-local function renderPenaltyOverlay(overlay)
-    local text = ""
-    if penaltyState.active == true then
-        text = string.format("InfiniDD penalty: %.2fs", currentPenaltyRemaining())
+local function readPracticeDeathCount(runtime)
+    local deaths = getPracticeDeaths(runtime)
+    if deaths == nil then
+        return 0
     end
-    overlay.setLine(PENALTY_OVERLAY_LINE, {
-        text = text,
+    return math.floor(tonumber(deaths.count) or 0)
+end
+
+local function incrementPracticeDeathCount(runtime)
+    local deaths = getPracticeDeaths(runtime)
+    if deaths == nil then
+        return 0
+    end
+    deaths.count = math.floor(tonumber(deaths.count) or 0) + 1
+    return deaths.count
+end
+
+local function renderDeathCounterOverlay(runtime, overlay)
+    local count = readPracticeDeathCount(runtime)
+    local label = ""
+    local value = ""
+    if count > 0 then
+        label = "Practice deaths"
+        value = tostring(count)
+    end
+
+    overlay.setLine(DEATH_COUNTER_OVERLAY_LINE, {
+        label = label,
+        value = value,
     })
-    overlay.refreshRegion(PENALTY_OVERLAY_REGION)
-end
-
-local function isPenaltySpeedChange(event)
-    local args = event and event.args or nil
-    return args and args[1] == PENALTY_SPEED_CHANGE_NAME
-end
-
-local function finishTimePenalty(token)
-    if penaltyState.token ~= token then
-        return
-    end
-    if penaltyState.active ~= true then
-        return
-    end
-
-    penaltyState.active = false
-    penaltyState.endsAt = nil
-    penaltyState.needsOverlayRefresh = true
-    penaltyState.remainingSeconds = 0
-    RemoveSimSpeedChange(PENALTY_SPEED_CHANGE_NAME, PENALTY_CLEAR_SPEED)
-end
-
-local function startTimePenalty(seconds)
-    if seconds <= 0 then
-        return
-    end
-
-    penaltyState.token = penaltyState.token + 1
-    local now = clock()
-    penaltyState.active = true
-    penaltyState.endsAt = now + seconds
-    penaltyState.needsOverlayRefresh = false
-    penaltyState.prewarm = false
-    penaltyState.remainingSeconds = seconds
-
-    AddSimSpeedChange(PENALTY_SPEED_CHANGE_NAME, PENALTY_SIM_SPEED)
+    overlay.refreshRegion(DEATH_COUNTER_OVERLAY_REGION)
 end
 
 local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs)
@@ -186,7 +139,6 @@ local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs
     local createdRoomUsageTable = ensureRoomUsageTable()
     local usageSnapshot = snapshotUsageCounts(createdRoomUsageTable)
     local practiceLastStand = buildPracticeLastStand(runtime)
-    local penaltySeconds = clampTimePenaltySeconds(runtime.data.read(data.TIME_PENALTY_SECONDS_ALIAS))
     table.insert(victim.LastStands, practiceLastStand)
 
     host.logIf("InfiniDD practice Death Defiance triggered.")
@@ -196,24 +148,33 @@ local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs
     end
     restoreUsageCounts(usageSnapshot)
     if result == true then
-        startTimePenalty(penaltySeconds)
+        incrementPracticeDeathCount(runtime)
     end
     return result
 end
 
-local function registerPenaltyOverlay(overlays)
-    overlays.createLine(PENALTY_OVERLAY_LINE, {
-        componentName = "InfiniDD_Penalty",
-        region = PENALTY_OVERLAY_REGION,
+local function registerDeathCounterOverlay(overlays)
+    overlays.createLine(DEATH_COUNTER_OVERLAY_LINE, {
+        componentName = "InfiniDD_DeathCounter",
+        region = DEATH_COUNTER_OVERLAY_REGION,
         order = overlays.order.module + 5,
         columnGap = 8,
-        visible = function(host)
-            return host.isEnabled() == true and (penaltyState.active == true or penaltyState.prewarm == true)
+        visible = function(host, runtime)
+            return host.isEnabled() == true and readPracticeDeathCount(runtime) > 0
         end,
         columns = {
             {
-                key = "text",
-                minWidth = 180,
+                key = "label",
+                minWidth = 130,
+                justify = "Right",
+                textArgs = {
+                    Font = "P22UndergroundSCMedium",
+                    Color = { 1.0, 1.0, 1.0, 1.0 },
+                },
+            },
+            {
+                key = "value",
+                minWidth = 24,
                 justify = "Right",
                 textArgs = {
                     Font = "P22UndergroundSCMedium",
@@ -223,37 +184,17 @@ local function registerPenaltyOverlay(overlays)
         },
     })
 
-    overlays.afterHook("AddSimSpeedChange", function(_, _, overlay, event)
-        if isPenaltySpeedChange(event) and penaltyState.active == true then
-            renderPenaltyOverlay(overlay)
-        end
-    end)
-
-    overlays.afterHook("RemoveSimSpeedChange", function(_, _, overlay, event)
-        if isPenaltySpeedChange(event) then
-            renderPenaltyOverlay(overlay)
-        end
-    end)
-
-    overlays.onInterval("penalty", PENALTY_OVERLAY_REFRESH_SECONDS, function(_, _, overlay)
-        if penaltyState.active == true and currentPenaltyRemaining() <= 0 then
-            finishTimePenalty(penaltyState.token)
-        end
-        renderPenaltyOverlay(overlay)
-        if penaltyState.active ~= true then
-            penaltyState.needsOverlayRefresh = false
-        end
+    overlays.onInterval("deathCounter", DEATH_COUNTER_OVERLAY_REFRESH_SECONDS, function(_, runtime, overlay)
+        renderDeathCounterOverlay(runtime, overlay)
     end, {
-        when = function()
-            return penaltyState.active == true
-                or penaltyState.needsOverlayRefresh == true
-                or penaltyState.prewarm == true
+        when = function(host, runtime)
+            return host.isEnabled() == true and readPracticeDeathCount(runtime) > 0
         end,
     })
 end
 
 function logic.attach(moduleRef)
-    registerPenaltyOverlay(moduleRef.overlays)
+    registerDeathCounterOverlay(moduleRef.overlays)
 
     moduleRef.hooks.wrap("CheckLastStand", function(host, runtime, baseFunc, victim, triggerArgs)
         local result = baseFunc(victim, triggerArgs)

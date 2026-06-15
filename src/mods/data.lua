@@ -7,13 +7,7 @@ data.recoveryPercent = {
     max = 100,
     step = 5,
 }
-data.TIME_PENALTY_SECONDS_ALIAS = "TimePenaltySeconds"
-data.timePenaltySeconds = {
-    default = 30,
-    min = 0,
-    max = 120,
-    step = 5,
-}
+data.PRACTICE_DEATHS_CACHE_ALIAS = "PracticeDeaths"
 
 function data.buildStorage()
     return {
@@ -24,12 +18,19 @@ function data.buildStorage()
             min = data.recoveryPercent.min,
             max = data.recoveryPercent.max,
         },
-        {
-            type = "int",
-            alias = data.TIME_PENALTY_SECONDS_ALIAS,
-            default = data.timePenaltySeconds.default,
-            min = data.timePenaltySeconds.min,
-            max = data.timePenaltySeconds.max,
+    }
+end
+
+function data.buildCache()
+    return {
+        [data.PRACTICE_DEATHS_CACHE_ALIAS] = {
+            domain = "currentRun",
+            key = "PracticeDeaths",
+            factory = function()
+                return {
+                    count = 0,
+                }
+            end,
         },
     }
 end

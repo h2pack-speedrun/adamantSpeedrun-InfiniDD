@@ -24,22 +24,6 @@ local RECOVERY_PERCENT_OPTS = {
     },
     default = data.recoveryPercent.default,
 }
-local TIME_PENALTY_OPTS = {
-    label = "Time penalty",
-    tooltip = "Real-time delay applied after each practice Death Defiance.",
-    labelWidth = SETTING_LABEL_WIDTH,
-    controlWidth = SETTING_DROPDOWN_WIDTH,
-    valueRange = {
-        min = data.timePenaltySeconds.min,
-        max = data.timePenaltySeconds.max,
-        step = data.timePenaltySeconds.step,
-        suffix = "s",
-    },
-    default = data.timePenaltySeconds.default,
-    displayValues = {
-        [0] = "Off",
-    },
-}
 
 local function drawPracticeWarning(host, draw)
     if host.isEnabled() == true then
@@ -50,7 +34,6 @@ end
 local function drawSettings(host, draw, state)
     drawPracticeWarning(host, draw)
     draw.widgets.dropdown(state.get(data.RECOVERY_PERCENT_ALIAS), RECOVERY_PERCENT_OPTS)
-    draw.widgets.dropdown(state.get(data.TIME_PENALTY_SECONDS_ALIAS), TIME_PENALTY_OPTS)
 end
 
 function ui.drawQuickContent(host, uiContext)

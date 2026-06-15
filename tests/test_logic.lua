@@ -1,8 +1,7 @@
--- luacheck: globals TestInfiniDDLogic CurrentRun AddSimSpeedChange RemoveSimSpeedChange
+-- luacheck: globals TestInfiniDDLogic CurrentRun
 local lu = require("luaunit")
 
 local data = dofile("src/mods/data.lua")
-local testNow = 100
 local logic
 
 TestInfiniDDLogic = {}
@@ -10,16 +9,12 @@ TestInfiniDDLogic = {}
 local function loadLogic()
     return assert(loadfile("src/mods/logic.lua"))({
         data = data,
-        clock = function()
-            return testNow
-        end,
     })
 end
 
 local function captureHooks()
     local hooks = {}
     local overlays = {
-        afterHooks = {},
         lines = {},
         intervals = {},
     }
@@ -43,18 +38,17 @@ local function captureHooks()
                     opts = opts,
                 }
             end,
-            afterHook = function(path, callback)
-                overlays.afterHooks[path] = callback
-            end,
         },
     })
     return hooks, overlays
 end
 
-local function createRuntime(recoveryPercent, timePenaltySeconds)
+local function createRuntime(recoveryPercent)
+    local practiceDeaths = {
+        count = 0,
+    }
     local values = {
         [data.RECOVERY_PERCENT_ALIAS] = recoveryPercent,
-        [data.TIME_PENALTY_SECONDS_ALIAS] = timePenaltySeconds or 0,
     }
     return {
         data = {
@@ -62,6 +56,17 @@ local function createRuntime(recoveryPercent, timePenaltySeconds)
                 return values[alias]
             end,
         },
+        cache = {
+            currentRun = {
+                get = function(alias)
+                    if alias == data.PRACTICE_DEATHS_CACHE_ALIAS then
+                        return practiceDeaths
+                    end
+                    return nil
+                end,
+            },
+        },
+        practiceDeaths = practiceDeaths,
     }
 end
 
@@ -78,9 +83,6 @@ end
 function TestInfiniDDLogic:setUp()
     self.previousCurrentRun = _G.CurrentRun
     self.previousSessionMapState = _G.SessionMapState
-    self.previousAddSimSpeedChange = _G.AddSimSpeedChange
-    self.previousRemoveSimSpeedChange = _G.RemoveSimSpeedChange
-    testNow = 100
     _G.CurrentRun = {
         Hero = {
             LastStands = {},
@@ -90,20 +92,6 @@ function TestInfiniDDLogic:setUp()
         },
     }
     _G.SessionMapState = {}
-    self.addedSimSpeeds = {}
-    self.removedSimSpeeds = {}
-    _G.AddSimSpeedChange = function(name, args)
-        self.addedSimSpeeds[#self.addedSimSpeeds + 1] = {
-            name = name,
-            args = args,
-        }
-    end
-    _G.RemoveSimSpeedChange = function(name, args)
-        self.removedSimSpeeds[#self.removedSimSpeeds + 1] = {
-            name = name,
-            args = args,
-        }
-    end
     logic = loadLogic()
     self.hooks, self.overlays = captureHooks()
     self.checkLastStand = self.hooks.CheckLastStand
@@ -112,8 +100,6 @@ end
 function TestInfiniDDLogic:tearDown()
     _G.CurrentRun = self.previousCurrentRun
     _G.SessionMapState = self.previousSessionMapState
-    _G.AddSimSpeedChange = self.previousAddSimSpeedChange
-    _G.RemoveSimSpeedChange = self.previousRemoveSimSpeedChange
 end
 
 function TestInfiniDDLogic:testBaseResultWins()
@@ -205,7 +191,8 @@ end
 
 function TestInfiniDDLogic:testPracticeDefianceCleansUpIfSecondBaseCallFails()
     local calls = 0
-    local result = self.checkLastStand(createHost(true), createRuntime(55), function()
+    local runtime = createRuntime(55)
+    local result = self.checkLastStand(createHost(true), runtime, function()
         calls = calls + 1
         return false
     end, CurrentRun.Hero, {})
@@ -213,11 +200,12 @@ function TestInfiniDDLogic:testPracticeDefianceCleansUpIfSecondBaseCallFails()
     lu.assertEquals(result, false)
     lu.assertEquals(calls, 2)
     lu.assertEquals(#CurrentRun.Hero.LastStands, 0)
+    lu.assertEquals(runtime.practiceDeaths.count, 0)
 end
 
-function TestInfiniDDLogic:testPracticeDefianceStartsConfiguredPenaltyAfterSuccessfulCheck()
+function TestInfiniDDLogic:testPracticeDefianceCountsSuccessfulPracticeDeath()
     local host = createHost(true)
-    local runtime = createRuntime(55, 3)
+    local runtime = createRuntime(55)
     local calls = 0
 
     local result = self.checkLastStand(host, runtime, function(victim)
@@ -232,22 +220,20 @@ function TestInfiniDDLogic:testPracticeDefianceStartsConfiguredPenaltyAfterSucce
 
     lu.assertEquals(result, true)
     lu.assertEquals(calls, 2)
-    lu.assertEquals(self.addedSimSpeeds[1].name, "InfiniDDPenalty")
-    lu.assertEquals(self.addedSimSpeeds[1].args.Fraction, 0)
-    lu.assertEquals(self.addedSimSpeeds[1].args.LerpTime, 0.001)
-    lu.assertEquals(#self.removedSimSpeeds, 0)
+    lu.assertEquals(runtime.practiceDeaths.count, 1)
 end
 
-function TestInfiniDDLogic:testPenaltyOverlayPrewarmsBlankLineBeforeFirstPenalty()
-    local line = self.overlays.lines.penalty
+function TestInfiniDDLogic:testDeathCounterOverlayStaysHiddenBeforeFirstPracticeDeath()
+    local runtime = createRuntime(55)
+    local line = self.overlays.lines.deathCounter
     lu.assertNotNil(line)
-    lu.assertTrue(line.visible(createHost(true)))
-    lu.assertFalse(line.visible(createHost(false)))
-    lu.assertTrue(self.overlays.intervals.penalty.opts.when())
+    lu.assertFalse(line.visible(createHost(true), runtime))
+    lu.assertFalse(line.visible(createHost(false), runtime))
+    lu.assertFalse(self.overlays.intervals.deathCounter.opts.when(createHost(true), runtime))
 
     local lines = {}
     local refreshedRegions = {}
-    self.overlays.intervals.penalty.callback(createHost(true), createRuntime(55, 3), {
+    self.overlays.intervals.deathCounter.callback(createHost(true), runtime, {
         setLine = function(name, values)
             lines[name] = values
         end,
@@ -256,13 +242,14 @@ function TestInfiniDDLogic:testPenaltyOverlayPrewarmsBlankLineBeforeFirstPenalty
         end,
     })
 
-    lu.assertEquals(lines.penalty.text, "")
-    lu.assertEquals(refreshedRegions, { "centerLowerStack" })
+    lu.assertEquals(lines.deathCounter.label, "")
+    lu.assertEquals(lines.deathCounter.value, "")
+    lu.assertEquals(refreshedRegions, { "middleRightStack" })
 end
 
-function TestInfiniDDLogic:testPenaltyOverlayRendersFromSimSpeedHooksAndIntervalFinishesPenalty()
+function TestInfiniDDLogic:testDeathCounterOverlayRendersCurrentRunCount()
     local host = createHost(true)
-    local runtime = createRuntime(55, 3)
+    local runtime = createRuntime(55)
     local calls = 0
 
     local result = self.checkLastStand(host, runtime, function(victim)
@@ -277,29 +264,13 @@ function TestInfiniDDLogic:testPenaltyOverlayRendersFromSimSpeedHooksAndInterval
 
     lu.assertEquals(result, true)
     lu.assertEquals(calls, 2)
-    lu.assertEquals(self.addedSimSpeeds[1].name, "InfiniDDPenalty")
+    lu.assertEquals(runtime.practiceDeaths.count, 1)
+    lu.assertTrue(self.overlays.lines.deathCounter.visible(host, runtime))
+    lu.assertTrue(self.overlays.intervals.deathCounter.opts.when(host, runtime))
 
     local lines = {}
     local refreshedRegions = {}
-    self.overlays.afterHooks.AddSimSpeedChange(host, runtime, {
-        setLine = function(name, values)
-            lines[name] = values
-        end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
-        end,
-    }, {
-        args = {
-            "InfiniDDPenalty",
-            self.addedSimSpeeds[1].args,
-        },
-    })
-
-    lu.assertEquals(lines.penalty.text, "InfiniDD penalty: 3.00s")
-    lu.assertEquals(refreshedRegions, { "centerLowerStack" })
-
-    testNow = 101.23
-    self.overlays.intervals.penalty.callback(host, runtime, {
+    self.overlays.intervals.deathCounter.callback(host, runtime, {
         setLine = function(name, values)
             lines[name] = values
         end,
@@ -307,78 +278,8 @@ function TestInfiniDDLogic:testPenaltyOverlayRendersFromSimSpeedHooksAndInterval
             refreshedRegions[#refreshedRegions + 1] = region
         end,
     })
-    lu.assertEquals(lines.penalty.text, "InfiniDD penalty: 1.77s")
-    lu.assertEquals(#self.removedSimSpeeds, 0)
 
-    testNow = 103.01
-    self.overlays.intervals.penalty.callback(host, runtime, {
-        setLine = function(name, values)
-            lines[name] = values
-        end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
-        end,
-    })
-    lu.assertEquals(lines.penalty.text, "")
-    lu.assertEquals(self.removedSimSpeeds[1].name, "InfiniDDPenalty")
-    lu.assertEquals(self.removedSimSpeeds[1].args.LerpTime, 0.001)
-    lu.assertEquals(refreshedRegions[#refreshedRegions], "centerLowerStack")
-end
-
-function TestInfiniDDLogic:testZeroPenaltyDoesNotChangeSimulationSpeed()
-    local host = createHost(true)
-    local runtime = createRuntime(55, 0)
-    local calls = 0
-
-    local result = self.checkLastStand(host, runtime, function(victim)
-        calls = calls + 1
-        if calls == 1 then
-            return false
-        end
-
-        table.remove(victim.LastStands)
-        return true
-    end, CurrentRun.Hero, {})
-
-    lu.assertEquals(result, true)
-    lu.assertEquals(calls, 2)
-    lu.assertEquals(#self.addedSimSpeeds, 0)
-    lu.assertEquals(#self.removedSimSpeeds, 0)
-end
-
-function TestInfiniDDLogic:testPenaltyOverlayGetsFinalRefreshAfterCountdownEnds()
-    local host = createHost(true)
-    local runtime = createRuntime(55, 1)
-    local calls = 0
-
-    local result = self.checkLastStand(host, runtime, function(victim)
-        calls = calls + 1
-        if calls == 1 then
-            return false
-        end
-
-        table.remove(victim.LastStands)
-        return true
-    end, CurrentRun.Hero, {})
-
-    lu.assertEquals(result, true)
-    lu.assertEquals(calls, 2)
-
-    local interval = self.overlays.intervals.penalty
-    lu.assertNotNil(interval)
-    lu.assertTrue(interval.opts.when(createHost(false)))
-
-    testNow = 101.01
-    local refreshedRegions = {}
-    interval.callback(nil, nil, {
-        setLine = function()
-        end,
-        refreshRegion = function(region)
-            refreshedRegions[#refreshedRegions + 1] = region
-        end,
-    })
-
-    lu.assertEquals(refreshedRegions, { "centerLowerStack" })
-    lu.assertEquals(self.removedSimSpeeds[1].name, "InfiniDDPenalty")
-    lu.assertFalse(interval.opts.when(host))
+    lu.assertEquals(lines.deathCounter.label, "Practice deaths")
+    lu.assertEquals(lines.deathCounter.value, "1")
+    lu.assertEquals(refreshedRegions, { "middleRightStack" })
 end
