@@ -60,7 +60,9 @@ local function drawSettings(host, draw, state)
     draw.widgets.dropdown(state.get(data.RECOVERY_PERCENT_ALIAS), RECOVERY_PERCENT_OPTS)
     draw.widgets.checkbox(state.get(data.SHOW_DEATH_COUNTER_OVERLAY_ALIAS), SHOW_DEATH_COUNTER_OPTS)
     draw.widgets.checkbox(state.get(data.ENABLE_PRACTICE_SLOW_ALIAS), ENABLE_PRACTICE_SLOW_OPTS)
-    draw.widgets.dropdown(state.get(data.PRACTICE_SLOW_SECONDS_ALIAS), PRACTICE_SLOW_SECONDS_OPTS)
+    if state.read(data.ENABLE_PRACTICE_SLOW_ALIAS) == true then
+        draw.widgets.dropdown(state.get(data.PRACTICE_SLOW_SECONDS_ALIAS), PRACTICE_SLOW_SECONDS_OPTS)
+    end
 end
 
 function ui.drawQuickContent(host, uiContext)

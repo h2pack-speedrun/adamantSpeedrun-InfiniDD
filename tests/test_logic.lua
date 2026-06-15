@@ -78,6 +78,9 @@ local function createRuntime(recoveryPercent, practiceSlowSeconds, opts)
         cache = {
             currentRun = {
                 get = function(alias)
+                    if opts.noCurrentRunCache == true then
+                        return nil
+                    end
                     if alias == data.PRACTICE_DEATHS_CACHE_ALIAS then
                         return practiceDeaths
                     end
@@ -474,6 +477,31 @@ function TestInfiniDDLogic:testDeathCounterOverlayStaysHiddenBeforeFirstPractice
     lu.assertNotNil(line)
     lu.assertFalse(line.visible(createHost(true), runtime))
     lu.assertFalse(line.visible(createHost(false), runtime))
+    lu.assertFalse(self.overlays.intervals.deathCounter.opts.when(createHost(true), runtime))
+
+    local lines = {}
+    local refreshedLines = {}
+    self.overlays.intervals.deathCounter.callback(createHost(true), runtime, {
+        setLine = function(name, values)
+            lines[name] = values
+        end,
+        refresh = function(name)
+            refreshedLines[#refreshedLines + 1] = name
+        end,
+    })
+
+    lu.assertEquals(lines.deathCounter.label, "")
+    lu.assertEquals(lines.deathCounter.value, "")
+    lu.assertEquals(refreshedLines, { "deathCounter" })
+end
+
+function TestInfiniDDLogic:testDeathCounterOverlayStaysHiddenBeforeCurrentRunCacheExists()
+    local runtime = createRuntime(55, nil, {
+        noCurrentRunCache = true,
+    })
+    local line = self.overlays.lines.deathCounter
+    lu.assertNotNil(line)
+    lu.assertFalse(line.visible(createHost(true), runtime))
     lu.assertFalse(self.overlays.intervals.deathCounter.opts.when(createHost(true), runtime))
 
     local lines = {}

@@ -74,7 +74,11 @@ local function removePracticeLastStand(victim, practiceLastStand)
 end
 
 local function readPracticeDeathCount(runtime)
-    return runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS).count
+    local deaths = runtime.cache.currentRun.get(data.PRACTICE_DEATHS_CACHE_ALIAS)
+    if deaths == nil then
+        return 0
+    end
+    return deaths.count
 end
 
 local function incrementPracticeDeathCount(runtime)
