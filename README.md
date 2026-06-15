@@ -12,6 +12,8 @@ The recovery amount is configurable. By default, practice Death Defiances restor
 
 A right-side overlay counts practice Death Defiances used in the current run.
 
+Optionally, a practice Death Defiance can slow the player, enemies, projectiles, and world objects for a short duration after the base Death Defiance sequence finishes.
+
 
 ## Installation
 

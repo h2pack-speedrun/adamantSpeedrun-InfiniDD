@@ -1,14 +1,17 @@
 -- luacheck: globals TestInfiniDDLogic CurrentRun
 local lu = require("luaunit")
+local unpack = table.unpack or unpack
 
 local data = dofile("src/mods/data.lua")
 local logic
 
 TestInfiniDDLogic = {}
 
-local function loadLogic()
+local function loadLogic(clock, threadFunc)
     return assert(loadfile("src/mods/logic.lua"))({
         data = data,
+        clock = clock,
+        thread = threadFunc,
     })
 end
 
@@ -43,12 +46,15 @@ local function captureHooks()
     return hooks, overlays
 end
 
-local function createRuntime(recoveryPercent)
+local function createRuntime(recoveryPercent, practiceSlowSeconds)
     local practiceDeaths = {
         count = 0,
     }
     local values = {
         [data.RECOVERY_PERCENT_ALIAS] = recoveryPercent,
+        [data.PRACTICE_SLOW_SECONDS_ALIAS] = practiceSlowSeconds == nil
+            and data.practiceSlowSeconds.default
+            or practiceSlowSeconds,
     }
     return {
         data = {
@@ -83,6 +89,23 @@ end
 function TestInfiniDDLogic:setUp()
     self.previousCurrentRun = _G.CurrentRun
     self.previousSessionMapState = _G.SessionMapState
+    self.previousGameplaySetElapsedTimeMultiplier = _G.GameplaySetElapsedTimeMultiplier
+    self.previousWaitUnmodified = _G.waitUnmodified
+    self.previousRoomThreadName = _G.RoomThreadName
+    self.clockNow = 100
+    self.gameplaySlowCalls = {}
+    self.threadCalls = {}
+    self.waits = {}
+    _G.GameplaySetElapsedTimeMultiplier = function(args)
+        self.gameplaySlowCalls[#self.gameplaySlowCalls + 1] = args
+    end
+    _G.waitUnmodified = function(seconds, threadName)
+        self.waits[#self.waits + 1] = {
+            seconds = seconds,
+            threadName = threadName,
+        }
+    end
+    _G.RoomThreadName = "RoomThread"
     _G.CurrentRun = {
         Hero = {
             LastStands = {},
@@ -92,7 +115,14 @@ function TestInfiniDDLogic:setUp()
         },
     }
     _G.SessionMapState = {}
-    logic = loadLogic()
+    logic = loadLogic(function()
+        return self.clockNow
+    end, function(callback, ...)
+        self.threadCalls[#self.threadCalls + 1] = {
+            callback = callback,
+            args = { ... },
+        }
+    end)
     self.hooks, self.overlays = captureHooks()
     self.checkLastStand = self.hooks.CheckLastStand
 end
@@ -100,6 +130,9 @@ end
 function TestInfiniDDLogic:tearDown()
     _G.CurrentRun = self.previousCurrentRun
     _G.SessionMapState = self.previousSessionMapState
+    _G.GameplaySetElapsedTimeMultiplier = self.previousGameplaySetElapsedTimeMultiplier
+    _G.waitUnmodified = self.previousWaitUnmodified
+    _G.RoomThreadName = self.previousRoomThreadName
 end
 
 function TestInfiniDDLogic:testBaseResultWins()
@@ -191,7 +224,7 @@ end
 
 function TestInfiniDDLogic:testPracticeDefianceCleansUpIfSecondBaseCallFails()
     local calls = 0
-    local runtime = createRuntime(55)
+    local runtime = createRuntime(55, 4)
     local result = self.checkLastStand(createHost(true), runtime, function()
         calls = calls + 1
         return false
@@ -201,6 +234,8 @@ function TestInfiniDDLogic:testPracticeDefianceCleansUpIfSecondBaseCallFails()
     lu.assertEquals(calls, 2)
     lu.assertEquals(#CurrentRun.Hero.LastStands, 0)
     lu.assertEquals(runtime.practiceDeaths.count, 0)
+    lu.assertEquals(self.gameplaySlowCalls, {})
+    lu.assertEquals(self.threadCalls, {})
 end
 
 function TestInfiniDDLogic:testPracticeDefianceCountsSuccessfulPracticeDeath()
@@ -221,6 +256,194 @@ function TestInfiniDDLogic:testPracticeDefianceCountsSuccessfulPracticeDeath()
     lu.assertEquals(result, true)
     lu.assertEquals(calls, 2)
     lu.assertEquals(runtime.practiceDeaths.count, 1)
+end
+
+function TestInfiniDDLogic:testPracticeDefianceStartsWorldSlowAfterSuccessfulPracticeDeath()
+    local host = createHost(true)
+    local runtime = createRuntime(55, 4)
+    local calls = 0
+
+    local result = self.checkLastStand(host, runtime, function(victim)
+        calls = calls + 1
+        if calls == 1 then
+            return false
+        end
+
+        table.remove(victim.LastStands)
+        return true
+    end, CurrentRun.Hero, {})
+
+    lu.assertEquals(result, true)
+    lu.assertEquals(calls, 2)
+    lu.assertEquals(runtime.practiceDeaths.count, 1)
+    lu.assertEquals(#self.threadCalls, 1)
+    lu.assertEquals(self.threadCalls[1].args, { 1, 4 })
+    lu.assertEquals(self.gameplaySlowCalls, {
+        {
+            Name = "InfiniDDPracticeSlow",
+            ElapsedTimeMultiplier = 0.1,
+            ApplyToPlayerUnits = true,
+            SkipPresentation = true,
+        },
+    })
+
+    self.threadCalls[1].callback(unpack(self.threadCalls[1].args))
+
+    lu.assertEquals(self.waits, {
+        {
+            seconds = 4,
+            threadName = "RoomThread",
+        },
+    })
+    lu.assertEquals(self.gameplaySlowCalls[2], {
+        Name = "InfiniDDPracticeSlow",
+        ElapsedTimeMultiplier = 0.1,
+        ApplyToPlayerUnits = true,
+        Reverse = true,
+        SkipPresentation = true,
+    })
+end
+
+function TestInfiniDDLogic:testPracticeDefianceZeroSlowDoesNotStartWorldSlow()
+    local host = createHost(true)
+    local runtime = createRuntime(55, 0)
+    local calls = 0
+
+    local result = self.checkLastStand(host, runtime, function(victim)
+        calls = calls + 1
+        if calls == 1 then
+            return false
+        end
+
+        table.remove(victim.LastStands)
+        return true
+    end, CurrentRun.Hero, {})
+
+    lu.assertEquals(result, true)
+    lu.assertEquals(calls, 2)
+    lu.assertEquals(runtime.practiceDeaths.count, 1)
+    lu.assertEquals(self.gameplaySlowCalls, {})
+    lu.assertEquals(self.threadCalls, {})
+    lu.assertFalse(self.overlays.lines.practiceSlow.visible(host, runtime))
+    lu.assertFalse(self.overlays.intervals.practiceSlow.opts.when(host, runtime))
+end
+
+function TestInfiniDDLogic:testBaseLastStandDoesNotStartPracticeWorldSlow()
+    local host = createHost(true)
+    local runtime = createRuntime(55, 4)
+    local calls = 0
+
+    local result = self.checkLastStand(host, runtime, function()
+        calls = calls + 1
+        return true
+    end, CurrentRun.Hero, {})
+
+    lu.assertEquals(result, true)
+    lu.assertEquals(calls, 1)
+    lu.assertEquals(self.gameplaySlowCalls, {})
+    lu.assertEquals(self.threadCalls, {})
+end
+
+function TestInfiniDDLogic:testOlderPracticeSlowThreadDoesNotClearNewerSlow()
+    local host = createHost(true)
+    local calls = 0
+    local function baseFunc(victim)
+        calls = calls + 1
+        if calls % 2 == 1 then
+            return false
+        end
+
+        table.remove(victim.LastStands)
+        return true
+    end
+
+    lu.assertTrue(self.checkLastStand(host, createRuntime(55, 4), baseFunc, CurrentRun.Hero, {}))
+    lu.assertTrue(self.checkLastStand(host, createRuntime(55, 6), baseFunc, CurrentRun.Hero, {}))
+    lu.assertEquals(#self.threadCalls, 2)
+    lu.assertEquals(self.threadCalls[1].args, { 1, 4 })
+    lu.assertEquals(self.threadCalls[2].args, { 2, 6 })
+
+    self.threadCalls[1].callback(unpack(self.threadCalls[1].args))
+    lu.assertEquals(#self.gameplaySlowCalls, 2)
+
+    self.threadCalls[2].callback(unpack(self.threadCalls[2].args))
+    lu.assertEquals(#self.gameplaySlowCalls, 3)
+    lu.assertEquals(self.gameplaySlowCalls[3], {
+        Name = "InfiniDDPracticeSlow",
+        ElapsedTimeMultiplier = 0.1,
+        ApplyToPlayerUnits = true,
+        Reverse = true,
+        SkipPresentation = true,
+    })
+end
+
+function TestInfiniDDLogic:testPracticeSlowOverlayRendersDuringSlowAndClearsAfter()
+    local host = createHost(true)
+    local runtime = createRuntime(55, 4)
+    local calls = 0
+    local slowLine = self.overlays.lines.practiceSlow
+    local slowInterval = self.overlays.intervals.practiceSlow
+    local lines = {}
+    local refreshedRegions = {}
+
+    lu.assertNotNil(slowLine)
+    lu.assertEquals(slowLine.region, "centerLowerStack")
+    lu.assertFalse(slowLine.visible(host, runtime))
+    lu.assertFalse(slowInterval.opts.when(host, runtime))
+
+    local result = self.checkLastStand(host, runtime, function(victim)
+        calls = calls + 1
+        if calls == 1 then
+            return false
+        end
+
+        table.remove(victim.LastStands)
+        return true
+    end, CurrentRun.Hero, {})
+
+    lu.assertEquals(result, true)
+    lu.assertEquals(calls, 2)
+    lu.assertTrue(slowLine.visible(host, runtime))
+    lu.assertTrue(slowInterval.opts.when(host, runtime))
+
+    local overlay = {
+        setLine = function(name, values)
+            lines[name] = values
+        end,
+        refreshRegion = function(region)
+            refreshedRegions[#refreshedRegions + 1] = region
+        end,
+    }
+
+    self.clockNow = 101.2
+    slowInterval.callback(host, runtime, overlay, {
+        name = "practiceSlow",
+        now = self.clockNow,
+    })
+
+    lu.assertEquals(lines.practiceSlow, {
+        label = "InfiniDD slow",
+        value = "2.8s",
+    })
+    lu.assertEquals(refreshedRegions, { "centerLowerStack" })
+
+    self.threadCalls[1].callback(unpack(self.threadCalls[1].args))
+    lu.assertTrue(slowLine.visible(host, runtime))
+    lu.assertTrue(slowInterval.opts.when(host, runtime))
+
+    self.clockNow = 104.1
+    slowInterval.callback(host, runtime, overlay, {
+        name = "practiceSlow",
+        now = self.clockNow,
+    })
+
+    lu.assertEquals(lines.practiceSlow, {
+        label = "",
+        value = "",
+    })
+    lu.assertEquals(refreshedRegions, { "centerLowerStack", "centerLowerStack" })
+    lu.assertFalse(slowLine.visible(host, runtime))
+    lu.assertFalse(slowInterval.opts.when(host, runtime))
 end
 
 function TestInfiniDDLogic:testDeathCounterOverlayStaysHiddenBeforeFirstPracticeDeath()

@@ -24,4 +24,5 @@
 
 - Scaffolded the InfiniDD practice module.
 - Added synthetic practice Death Defiances with configurable health and magick recovery.
-- Added a configurable real-time penalty after synthetic practice Death Defiances.
+- Added optional world slow after synthetic practice Death Defiances.
+- Added a right-side current-run practice death counter.
