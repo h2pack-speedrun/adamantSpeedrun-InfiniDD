@@ -10,57 +10,35 @@ local PRACTICE_WARNING_TEXT = "Practice module active: dying after all DDs are c
 local SETTING_LABEL_WIDTH = 160
 local SETTING_DROPDOWN_WIDTH = 80
 
-local function buildSteppedValues(firstValue, maxValue, step, extraFirstValue)
-    local values = {}
-    if extraFirstValue ~= nil then
-        values[#values + 1] = extraFirstValue
-    end
-    for value = firstValue, maxValue, step do
-        if value ~= extraFirstValue then
-            values[#values + 1] = value
-        end
-    end
-    return values
-end
-
-local RECOVERY_VALUES = buildSteppedValues(
-    data.recoveryPercent.step,
-    data.recoveryPercent.max,
-    data.recoveryPercent.step,
-    data.recoveryPercent.min
-)
-local RECOVERY_DISPLAY_VALUES = {}
-for _, value in ipairs(RECOVERY_VALUES) do
-    RECOVERY_DISPLAY_VALUES[value] = tostring(value) .. "%"
-end
-local TIME_PENALTY_VALUES = buildSteppedValues(
-    data.timePenaltySeconds.min,
-    data.timePenaltySeconds.max,
-    data.timePenaltySeconds.step
-)
-local TIME_PENALTY_DISPLAY_VALUES = {}
-for _, value in ipairs(TIME_PENALTY_VALUES) do
-    TIME_PENALTY_DISPLAY_VALUES[value] = tostring(value) .. "s"
-end
-TIME_PENALTY_DISPLAY_VALUES[0] = "Off"
-
 local RECOVERY_PERCENT_OPTS = {
     label = "Recovery",
     tooltip = "Health and magick restored by each practice Death Defiance.",
     labelWidth = SETTING_LABEL_WIDTH,
     controlWidth = SETTING_DROPDOWN_WIDTH,
-    values = RECOVERY_VALUES,
+    valueRange = {
+        min = data.recoveryPercent.step,
+        max = data.recoveryPercent.max,
+        step = data.recoveryPercent.step,
+        prepend = data.recoveryPercent.min,
+        suffix = "%",
+    },
     default = data.recoveryPercent.default,
-    displayValues = RECOVERY_DISPLAY_VALUES,
 }
 local TIME_PENALTY_OPTS = {
     label = "Time penalty",
     tooltip = "Real-time delay applied after each practice Death Defiance.",
     labelWidth = SETTING_LABEL_WIDTH,
     controlWidth = SETTING_DROPDOWN_WIDTH,
-    values = TIME_PENALTY_VALUES,
+    valueRange = {
+        min = data.timePenaltySeconds.min,
+        max = data.timePenaltySeconds.max,
+        step = data.timePenaltySeconds.step,
+        suffix = "s",
+    },
     default = data.timePenaltySeconds.default,
-    displayValues = TIME_PENALTY_DISPLAY_VALUES,
+    displayValues = {
+        [0] = "Off",
+    },
 }
 
 local function drawPracticeWarning(host, draw)
