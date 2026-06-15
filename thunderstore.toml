@@ -4,7 +4,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "adamantSpeedrun"
 name = "InfiniDD"
-description = "SCAFFOLD_TODO: description for InfiniDD"
+description = "Infinite Death Defiance practice tools for training."
 versionNumber = "0.0.1"
 websiteUrl = "https://github.com/h2pack-speedrun/adamantSpeedrun-InfiniDD"
 containsNsfwContent = false
@@ -38,4 +38,4 @@ repository = "https://thunderstore.io"
 communities = ["hades-ii"]
 
 [publish.categories]
-hades-ii = ["modpacks"]
+hades-ii = ["mods"]

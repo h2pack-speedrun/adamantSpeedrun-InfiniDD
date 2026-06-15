@@ -1,8 +1,3 @@
--- =============================================================================
--- ADAMANT MODULE TEMPLATE
--- =============================================================================
--- Copy this file as src/main.lua in a new module repo.
--- Fill in the SCAFFOLD_TODO sections below.
 -- luacheck: globals rom import_as_fallback modutil lib _PLUGIN game
 
 local mods = rom.mods
@@ -26,8 +21,8 @@ local function init()
     import_as_fallback(rom.game)
 
     local data = import("mods/data.lua")
-    local logic = import("mods/logic.lua").bind(data)
-    local ui = import("mods/ui.lua").bind(data)
+    local logic = import("mods/logic.lua")
+    local ui = import("mods/ui.lua")
 
     local module = lib.createModule({
         pluginGuid = PLUGIN_GUID,
@@ -35,7 +30,7 @@ local function init()
         id = MODULE_ID,
         name = "InfiniDD",
         shortName = "InfiniDD",
-        tooltip = "SCAFFOLD_TODO: tooltip for InfiniDD",
+        tooltip = "Infinite Death Defiance practice tools for speedrun training.",
     })
     if not module then
         return
