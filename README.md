@@ -1,21 +1,21 @@
 # InfiniDD
 
-InfiniDD is a practice module for experimenting with infinite Death Defiance behavior in Hades II.
+InfiniDD is a practice module for experimenting with infinite Death Defiance behavior.
 
-Part of the [Speedrun modpack](https://github.com/h2pack-speedrun/speedrun-modpack).
+Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamantSpeedrun/Speedrun_Modpack/).
 
 ## What It Does
 
-This module is being built as a training tool for death and recovery practice.
+When enabled, lethal hits trigger a fake Death Defiance after all real Death Defiances are gone.
 
-## Gameplay Impact
+The recovery amount is configurable. By default, practice Death Defiances restore 40% health and magick, matching the base game Death Defiance recovery.
 
-No gameplay behavior is enabled yet. The module is scaffolded so the practice behavior can be implemented cleanly.
+The module also supports a configurable real-time penalty after each practice Death Defiance. The default penalty is 30 seconds and can be turned off.
 
-## How To Use
 
-Install using r2modman. In game, open the Speedrun menu and configure this module from the shared settings window.
+## Installation
 
-## More Information
+Install via r2modman.
 
-- [Speedrun modpack](https://github.com/h2pack-speedrun/speedrun-modpack)
+This module is usually installed as part of the full [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamantSpeedrun/Speedrun_Modpack/), where it appears in the shared Speedrun UI with the other speedrun-focused modules.
+

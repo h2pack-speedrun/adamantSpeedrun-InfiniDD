@@ -21,8 +21,12 @@ local function init()
     import_as_fallback(rom.game)
 
     local data = import("mods/data.lua")
-    local logic = import("mods/logic.lua")
-    local ui = import("mods/ui.lua")
+    local logic = import("mods/logic.lua", nil, {
+        data = data,
+    })
+    local ui = import("mods/ui.lua", nil, {
+        data = data,
+    })
 
     local module = lib.createModule({
         pluginGuid = PLUGIN_GUID,
