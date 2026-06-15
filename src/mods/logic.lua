@@ -1,4 +1,4 @@
--- luacheck: globals CurrentRun SessionMapState AddSimSpeedChange RemoveSimSpeedChange waitUnmodified thread
+-- luacheck: globals CurrentRun SessionMapState AddSimSpeedChange RemoveSimSpeedChange
 local deps = ... or {}
 local data = deps.data or import("mods/data.lua")
 local clock = deps.clock or os.clock
@@ -11,8 +11,8 @@ local PENALTY_OVERLAY_LINE = "penalty"
 local PENALTY_OVERLAY_REGION = "centerLowerStack"
 local PENALTY_OVERLAY_REFRESH_SECONDS = 0.1
 local PENALTY_SIM_SPEED = {
-    Fraction = 0.001,
-    LerpTime = 0,
+    Fraction = 0,
+    LerpTime = 0.001,
     Priority = true,
 }
 local PENALTY_CLEAR_SPEED = {
@@ -22,6 +22,7 @@ local penaltyState = {
     active = false,
     endsAt = nil,
     needsOverlayRefresh = false,
+    prewarm = true,
     remainingSeconds = 0,
     token = 0,
 }
@@ -123,14 +124,21 @@ local function removePracticeLastStand(victim, practiceLastStand)
     end
 end
 
-local function renderPenaltyOverlay(overlay)
+local function currentPenaltyRemaining()
     local remainingSeconds = tonumber(penaltyState.remainingSeconds) or 0
     if penaltyState.active == true and penaltyState.endsAt ~= nil then
         remainingSeconds = math.max(0, penaltyState.endsAt - clock())
     end
+    return remainingSeconds
+end
 
+local function renderPenaltyOverlay(overlay)
+    local text = ""
+    if penaltyState.active == true then
+        text = string.format("InfiniDD penalty: %.2fs", currentPenaltyRemaining())
+    end
     overlay.setLine(PENALTY_OVERLAY_LINE, {
-        text = string.format("InfiniDD penalty: %.2fs", remainingSeconds),
+        text = text,
     })
     overlay.refreshRegion(PENALTY_OVERLAY_REGION)
 end
@@ -144,27 +152,15 @@ local function finishTimePenalty(token)
     if penaltyState.token ~= token then
         return
     end
+    if penaltyState.active ~= true then
+        return
+    end
+
     penaltyState.active = false
     penaltyState.endsAt = nil
     penaltyState.needsOverlayRefresh = true
     penaltyState.remainingSeconds = 0
     RemoveSimSpeedChange(PENALTY_SPEED_CHANGE_NAME, PENALTY_CLEAR_SPEED)
-end
-
-local function runTimePenalty(token, seconds)
-    if seconds <= 0 then
-        return
-    end
-
-    for remaining = seconds, 1, -1 do
-        if penaltyState.token ~= token then
-            return
-        end
-        penaltyState.remainingSeconds = remaining
-        waitUnmodified(1)
-    end
-
-    finishTimePenalty(token)
 end
 
 local function startTimePenalty(seconds)
@@ -173,14 +169,14 @@ local function startTimePenalty(seconds)
     end
 
     penaltyState.token = penaltyState.token + 1
-    local token = penaltyState.token
+    local now = clock()
     penaltyState.active = true
-    penaltyState.endsAt = clock() + seconds
+    penaltyState.endsAt = now + seconds
     penaltyState.needsOverlayRefresh = false
+    penaltyState.prewarm = false
     penaltyState.remainingSeconds = seconds
 
     AddSimSpeedChange(PENALTY_SPEED_CHANGE_NAME, PENALTY_SIM_SPEED)
-    thread(runTimePenalty, token, seconds)
 end
 
 local function usePracticeLastStand(host, runtime, baseFunc, victim, triggerArgs)
@@ -212,7 +208,7 @@ local function registerPenaltyOverlay(overlays)
         order = overlays.order.module + 5,
         columnGap = 8,
         visible = function(host)
-            return host.isEnabled() == true and penaltyState.active == true
+            return host.isEnabled() == true and (penaltyState.active == true or penaltyState.prewarm == true)
         end,
         columns = {
             {
@@ -240,13 +236,18 @@ local function registerPenaltyOverlay(overlays)
     end)
 
     overlays.onInterval("penalty", PENALTY_OVERLAY_REFRESH_SECONDS, function(_, _, overlay)
+        if penaltyState.active == true and currentPenaltyRemaining() <= 0 then
+            finishTimePenalty(penaltyState.token)
+        end
         renderPenaltyOverlay(overlay)
         if penaltyState.active ~= true then
             penaltyState.needsOverlayRefresh = false
         end
     end, {
         when = function()
-            return penaltyState.active == true or penaltyState.needsOverlayRefresh == true
+            return penaltyState.active == true
+                or penaltyState.needsOverlayRefresh == true
+                or penaltyState.prewarm == true
         end,
     })
 end
