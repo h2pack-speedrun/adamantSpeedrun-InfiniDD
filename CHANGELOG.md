@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-05
+
+### Changed
+
+- No user-facing changes.
+
 ## [2.0.0] - 2026-06-15
 
 ### Added
