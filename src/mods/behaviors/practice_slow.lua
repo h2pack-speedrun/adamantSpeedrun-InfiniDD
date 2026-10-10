@@ -113,7 +113,6 @@ function behavior.attach(moduleRef)
                 minWidth = 130,
                 justify = "Right",
                 textArgs = {
-                    Font = "P22UndergroundSCMedium",
                     Color = { 1.0, 1.0, 1.0, 1.0 },
                     FontSize = 22,
                 },
@@ -123,7 +122,6 @@ function behavior.attach(moduleRef)
                 minWidth = 54,
                 justify = "Right",
                 textArgs = {
-                    Font = "P22UndergroundSCMedium",
                     Color = { 1.0, 0.18, 0.18, 1.0 },
                     FontSize = 22,
                 },

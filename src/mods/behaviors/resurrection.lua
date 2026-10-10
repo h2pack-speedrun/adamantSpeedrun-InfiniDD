@@ -148,7 +148,6 @@ local function registerDeathCounterOverlay(overlays)
                 minWidth = 130,
                 justify = "Right",
                 textArgs = {
-                    Font = "P22UndergroundSCMedium",
                     Color = { 1.0, 1.0, 1.0, 1.0 },
                 },
             },
@@ -157,7 +156,6 @@ local function registerDeathCounterOverlay(overlays)
                 minWidth = 24,
                 justify = "Right",
                 textArgs = {
-                    Font = "P22UndergroundSCMedium",
                     Color = { 1.0, 0.18, 0.18, 1.0 },
                 },
             },
