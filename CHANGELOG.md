@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-10-10
+
+### Changed
+
+- drop overlay font overrides now covered by the Lib default (
+472e5d)
+
 ## [5.0.0] - 2026-10-05
 
 ### Changed
